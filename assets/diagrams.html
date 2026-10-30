@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture Diagrams – System Overview</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#555; --line:#ddd; --bg:#fff; --node:#f4f6f8; --sens:#fff3cd; --sensStroke:#8a6d00; --bound:#b00020; --accent:#1f4e9c; --active:#dbe7fb; --warn:#b45309; --dead:#e5e5e5; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; color: var(--ink); background: var(--bg); }
+  header { padding: 16px 24px 0; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 1.3rem; margin: 0 0 12px; }
+  nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  nav.tabs button { border: 1px solid var(--line); border-bottom: none; background: #f7f7f7; padding: 8px 14px; cursor: pointer; font-size: 0.9rem; border-radius: 6px 6px 0 0; }
+  nav.tabs button[aria-selected="true"] { background: #fff; color: var(--accent); font-weight: 600; border-color: var(--accent); }
+  nav.tabs button:focus-visible, .node:focus-visible, .controls button:focus-visible, .controls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { padding: 20px 24px; }
+  .desc { color: var(--muted); margin: 0 0 6px; }
+  .step { min-height: 1.4em; font-size: 0.9rem; color: var(--accent); margin: 0 0 10px; font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 0.9rem; }
+  .controls button, .controls select { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: #f7f7f7; cursor: pointer; }
+  .controls button:hover, .controls select:hover { border-color: var(--accent); }
+  .controls label { display: inline-flex; align-items: center; gap: 4px; }
+  .hint { color: var(--muted); font-size: 0.85rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  svg { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; --speed: 1.8s; }
+
+  /* Nodes */
+  .node { cursor: pointer; transition: opacity .3s; }
+  .node rect { fill: var(--node); stroke: #333; stroke-width: 1.2; transition: fill .3s, stroke .3s; }
+  .node text { font-size: 12px; pointer-events: none; }
+  .node.sensitive rect { fill: var(--sens); stroke: var(--sensStroke); stroke-width: 2; }
+  .node.selected rect { stroke: var(--accent); stroke-width: 3; }
+  .node.active rect { fill: var(--active); stroke: var(--accent); stroke-width: 3; }
+  .node.dim { opacity: .25; }
+  .node.match rect { stroke: #d4a017; stroke-width: 3; }
+  .node.conf-inferred rect { stroke-dasharray: 5 3; }
+  .node.conf-doc-only rect, .node.conf-conflict rect, .node.conf-static-only rect { stroke: var(--warn); stroke-width: 2; }
+  .node.conf-dead-candidate rect { fill: var(--dead); stroke: #888; }
+  .node.conf-dead-candidate text { fill: #777; }
+  .node.no-ledger rect { stroke: #d00; stroke-width: 2; stroke-dasharray: 2 2; }
+  .badge { font-size: 13px; fill: var(--warn); font-weight: 700; pointer-events: auto; }
+
+  /* Zones (trust zones, or repositories in the cross-repo view) */
+  .zone rect { fill: none; stroke: var(--bound); stroke-dasharray: 6 4; stroke-width: 1.4; transition: opacity .3s; }
+  .zone text { font-size: 12px; fill: var(--bound); font-weight: 600; }
+  .zone.dim { opacity: .25; }
+
+  /* Edges and packets */
+  .edge { stroke: #333; fill: none; stroke-width: 1.2; marker-end: url(#arrow); cursor: pointer; }
+  .edge.flow { stroke: #7a8799; stroke-dasharray: 6 6; animation: flowdash var(--speed) linear infinite; }
+  .edge.current { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 6; }
+  .edge.flow.conf-inferred { stroke-dasharray: 2 4; }
+  .edge.flow.conf-doc-only, .edge.flow.conf-conflict, .edge.flow.conf-static-only { stroke: var(--warn); }
+  @keyframes flowdash { to { stroke-dashoffset: -12; } }
+  .packet { fill: var(--accent); stroke: #fff; stroke-width: 1; }
+  .edge-label { font-size: 10px; fill: var(--muted); text-anchor: middle; }
+  svg.paused .edge.flow { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) { .edge.flow { animation: none; } .node, .node rect, .zone rect { transition: none; } }
+
+  /* Side panel */
+  aside { border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; font-size: 0.9rem; position: sticky; top: 12px; }
+  aside h2 { font-size: 1rem; margin: 0 0 8px; }
+  aside p { margin: 6px 0; }
+  aside dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 10px 0 0; }
+  aside dt { color: var(--muted); }
+  aside dd { margin: 0; word-break: break-all; }
+  aside code { background: #f3f3f3; padding: 1px 4px; border-radius: 3px; }
+
+  /* Legend and footer */
+  .legend { margin-top: 12px; font-size: 0.85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 14px; }
+  .legend i { display: inline-block; width: 22px; height: 12px; vertical-align: middle; margin-right: 6px; border: 1px solid #333; }
+  .legend .n { background: var(--node); }
+  .legend .a { background: var(--active); border-color: var(--accent); }
+  .legend .s { background: var(--sens); border-color: var(--sensStroke); }
+  .legend .b { border: 1px dashed var(--bound); background: #fff; }
+  .legend .p { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: none; }
+  .legend .inf { background: #fff; border-style: dashed; }
+  .legend .wrn { background: #fff; border-color: var(--warn); border-width: 2px; }
+  .legend .dead { background: var(--dead); border-color: #888; }
+  .legend .miss { background: #fff; border: 2px dotted #d00; }
+  footer { font-size: 0.8rem; color: var(--muted); padding: 0 24px 20px; }
+  #ledgerStatus { font-weight: 600; }
+  #ledgerStatus.bad { color: var(--warn); }
+  #ledgerStatus.ok { color: #2e7d32; }
+</style>
+</head>
+<body>
+<header>
+  <h1>System Architecture Diagrams</h1>
+  <nav class="tabs" role="tablist" aria-label="Diagrams"></nav>
+</header>
+<main>
+  <p class="desc" id="desc"></p>
+  <p class="step" id="stepText" aria-live="polite"></p>
+  <div class="controls" role="toolbar" aria-label="Diagram controls">
+    <button id="toggle" type="button">Pause</button>
+    <button id="step" type="button">Step</button>
+    <label>Speed
+      <select id="speed">
+        <option value="slow">Slow</option>
+        <option value="normal" selected>Normal</option>
+        <option value="fast">Fast</option>
+      </select>
+    </label>
+    <label>Repo
+      <select id="repoFilter"><option value="">All repos</option></select>
+    </label>
+    <label><input type="checkbox" id="verifiedOnly"> Verified only</label>
+    <label>Find <input type="search" id="search" placeholder="Name, summary, or ledger ID" aria-label="Find component"></label>
+  </div>
+  <div class="layout">
+    <div>
+      <svg id="diagram" viewBox="0 0 900 480" role="img" aria-labelledby="diagTitle">
+        <title id="diagTitle">Diagram</title>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+          </marker>
+        </defs>
+        <g id="zones"></g>
+        <g id="edges"></g>
+        <g id="nodes"></g>
+      </svg>
+      <div class="legend">
+        <span><i class="n"></i>Verified component</span>
+        <span><i class="inf"></i>Dashed: inferred</span>
+        <span><i class="wrn"></i>⚠ Not verified (doc-only, conflict, static-only)</span>
+        <span><i class="dead"></i>Dead candidate</span>
+        <span><i class="s"></i>Sensitive data</span>
+        <span><i class="a"></i>Active step</span>
+        <span><i class="b"></i>Trust zone or repo</span>
+        <span><i class="miss"></i>Missing ledger ID</span>
+        <span><i class="p"></i>Data or call packet</span>
+      </div>
+    </div>
+    <aside id="info" aria-live="polite">
+      <h2>Select a component</h2>
+      <p>Click any node or edge to see its source, ledger ID, and confidence.</p>
+    </aside>
+  </div>
+</main>
+<footer><span id="ledgerStatus"></span> Generated from code graph queries and the evidence ledger (docs/ledger.json).</footer>
+
+<script>
+/*
+  DATA CONTRACT (replace the sample data with ledger-backed entries):
+  Node:  { id, label, x, y, w, h, src, detail, summary?, ledger, confidence, repo?, commit?, sensitive? }
+  summary: plain-English, one or two sentences, for non-specialist readers. detail: technical notes.
+  Edge:  { from, to, label, ledger, confidence, commit? }
+  Zone:  { id, label, x, y, w, h }  (in the cross-repo view, zone id = repo name)
+  confidence: verified | inferred | doc-only | conflict | static-only | dead-candidate
+  ledger: the F-#### ID from docs/ledger.json. Items without one are flagged in the footer.
+  src: file_path:line_number, or "external".
+*/
+const DIAGRAMS = {
+  "app-flow": {
+    title: "App flow",
+    desc: "Request lifecycle from entry point to response, including middleware order and background jobs.",
+    zones: [],
+    nodes: [
+      { id:"client", label:"Client", x:40, y:200, w:140, h:50, src:"external", repo:"web-api", ledger:"F-0101", confidence:"verified", commit:"a1b2c3d", detail:"Browser or API consumer. Entry point for all requests." },
+      { id:"gw", label:"API gateway", x:230, y:200, w:140, h:50, src:"src/api/routes.py:42", repo:"web-api", ledger:"F-0102", confidence:"verified", commit:"a1b2c3d", detail:"Routes requests to handlers. Applies middleware in order: logging, auth, validation." },
+      { id:"auth", label:"Auth middleware", x:420, y:110, w:150, h:50, src:"src/api/auth.py:15", repo:"web-api", ledger:"F-0103", confidence:"verified", commit:"a1b2c3d", detail:"Verifies token. Rejects unauthenticated requests before the handler runs." },
+      { id:"handler", label:"Service handler", x:420, y:290, w:150, h:50, src:"src/services/core.py:88", repo:"web-api", ledger:"F-0104", confidence:"verified", commit:"a1b2c3d", detail:"Business logic. Calls the data layer and returns a response." },
+      { id:"jobs", label:"Background jobs", x:640, y:290, w:150, h:50, src:"src/jobs/worker.py:9", repo:"web-api", ledger:"F-0105", confidence:"inferred", commit:"a1b2c3d", detail:"Queued tasks such as report generation and batch imports. Not confirmed against the scheduler config." },
+      { id:"resp", label:"Response", x:640, y:110, w:150, h:50, src:"src/api/render.py:21", repo:"web-api", ledger:"F-0106", confidence:"verified", commit:"a1b2c3d", detail:"Serializes the result to JSON and sets response headers." },
+      { id:"legacy", label:"Legacy XML export", x:40, y:30, w:170, h:44, src:"src/legacy/xml_export.py:3", repo:"web-api", ledger:"F-0107", confidence:"dead-candidate", commit:"a1b2c3d", detail:"No route or scheduler reference found. Confirm before treating as live." }
+    ],
+    edges: [
+      { from:"client", to:"gw", label:"HTTPS", ledger:"F-0111", confidence:"verified" },
+      { from:"gw", to:"auth", label:"JWT check", ledger:"F-0112", confidence:"verified" },
+      { from:"auth", to:"handler", label:"Authorized request", ledger:"F-0113", confidence:"verified" },
+      { from:"handler", to:"jobs", label:"Enqueue", ledger:"F-0114", confidence:"inferred" },
+      { from:"handler", to:"resp", label:"Result", ledger:"F-0115", confidence:"verified" },
+      { from:"resp", to:"client", label:"JSON", ledger:"F-0116", confidence:"verified" }
+    ]
+  },
+  "data-flow": {
+    title: "Data flow",
+    desc: "Where data enters, how it is transformed, where it is stored, and where it leaves the system.",
+    zones: [],
+    nodes: [
+      { id:"in", label:"Input payload", x:40, y:200, w:150, h:50, src:"src/api/intake.py:30", repo:"backend-api", ledger:"F-0201", confidence:"verified", commit:"a1b2c3d", detail:"Ingress point for user-submitted records. Validated against a schema." },
+      { id:"val", label:"Validate and map", x:250, y:200, w:150, h:50, src:"src/transform/map.py:12", repo:"backend-api", ledger:"F-0202", confidence:"verified", commit:"a1b2c3d", detail:"Normalizes field names and types before persistence." },
+      { id:"db", label:"Primary database", x:460, y:110, w:160, h:50, src:"src/store/models.py:5", repo:"backend-api", ledger:"F-0203", confidence:"verified", commit:"a1b2c3d", detail:"Stores structured records. Contains sensitive fields.", sensitive:true },
+      { id:"cache", label:"Cache", x:460, y:290, w:160, h:50, src:"src/store/cache.py:8", repo:"backend-api", ledger:"F-0204", confidence:"inferred", commit:"a1b2c3d", detail:"Short-lived read cache. Verify TTL before relying on it." },
+      { id:"log", label:"Audit log", x:690, y:110, w:160, h:50, src:"src/audit/log.py:19", repo:"backend-api", ledger:"F-0205", confidence:"conflict", commit:"a1b2c3d", detail:"Docs say raw sensitive fields are never logged. Code writes the full record on update. See drift register." },
+      { id:"out", label:"Export / reports", x:690, y:290, w:160, h:50, src:"src/export/csv.py:14", repo:"backend-api", ledger:"F-0206", confidence:"verified", commit:"a1b2c3d", detail:"Produces files for downstream users. Check access controls on export." }
+    ],
+    edges: [
+      { from:"in", to:"val", label:"JSON", ledger:"F-0211", confidence:"verified" },
+      { from:"val", to:"db", label:"Write", ledger:"F-0212", confidence:"verified" },
+      { from:"db", to:"cache", label:"Read-through", ledger:"F-0213", confidence:"verified" },
+      { from:"db", to:"log", label:"Change event", ledger:"F-0214", confidence:"verified" },
+      { from:"cache", to:"out", label:"Query", ledger:"F-0215", confidence:"verified" }
+    ]
+  },
+  "integration-flow": {
+    title: "Integration flow",
+    desc: "Internal services and external systems, with protocol and authentication on each edge.",
+    zones: [],
+    nodes: [
+      { id:"svc", label:"Core service", x:360, y:200, w:160, h:60, src:"src/services/core.py:1", repo:"backend-api", ledger:"F-0301", confidence:"verified", commit:"a1b2c3d", detail:"Central service that calls external dependencies." },
+      { id:"ehr", label:"External EHR (FHIR)", x:40, y:90, w:170, h:50, src:"src/integrations/fhir.py:22", repo:"backend-api", ledger:"F-0302", confidence:"inferred", commit:"a1b2c3d", detail:"Clinical records system. OAuth 2.0 client credentials suspected. Confirm in the auth config." },
+      { id:"ml", label:"ML inference API", x:40, y:310, w:170, h:50, src:"src/integrations/ml.py:40", repo:"ml-service", ledger:"F-0303", confidence:"verified", commit:"b4c5d6e", detail:"Model scoring endpoint. Auth via API key from secrets store." },
+      { id:"email", label:"Email provider", x:700, y:90, w:160, h:50, src:"src/notify/email.py:11", repo:"backend-api", ledger:"F-0304", confidence:"inferred", commit:"a1b2c3d", detail:"Sends notifications. Retry policy not confirmed." },
+      { id:"secrets", label:"Secrets manager", x:700, y:310, w:160, h:50, src:"src/config/secrets.py:6", repo:"backend-api", ledger:"F-0305", confidence:"verified", commit:"a1b2c3d", detail:"Source of credentials at startup. Never logged.", sensitive:true }
+    ],
+    edges: [
+      { from:"svc", to:"ehr", label:"HTTPS, OAuth2", ledger:"F-0311", confidence:"inferred" },
+      { from:"svc", to:"ml", label:"HTTPS, API key", ledger:"F-0312", confidence:"verified" },
+      { from:"svc", to:"email", label:"SMTP/TLS", ledger:"F-0313", confidence:"verified" },
+      { from:"secrets", to:"svc", label:"Loaded at startup", ledger:"F-0314", confidence:"verified" }
+    ]
+  },
+  "security-boundaries": {
+    title: "Security boundaries",
+    desc: "Trust zones, the controls at each crossing, and where sensitive data is held.",
+    zones: [
+      { id:"public", label:"Public zone", x:20, y:50, w:260, h:380 },
+      { id:"authz", label:"Authenticated zone", x:320, y:50, w:260, h:380 },
+      { id:"data", label:"Data zone", x:620, y:50, w:260, h:380 }
+    ],
+    nodes: [
+      { id:"browser", label:"Browser / client", x:50, y:200, w:170, h:50, src:"external", repo:"web-api", ledger:"F-0401", confidence:"verified", commit:"a1b2c3d", detail:"Untrusted. All input is validated server-side." },
+      { id:"edge", label:"Edge / TLS termination", x:50, y:320, w:170, h:50, src:"deploy/ingress.yaml:12", repo:"infra", ledger:"F-0402", confidence:"inferred", commit:"c7d8e9f", detail:"Enforces TLS 1.2+. Rate limiting suspected, not confirmed." },
+      { id:"api", label:"API service", x:350, y:200, w:200, h:50, src:"src/api/routes.py:42", repo:"backend-api", ledger:"F-0403", confidence:"verified", commit:"a1b2c3d", detail:"Control: JWT verification and role checks on each route." },
+      { id:"ctrl", label:"Input validation", x:350, y:300, w:200, h:50, src:"src/api/validate.py:9", repo:"backend-api", ledger:"F-0404", confidence:"verified", commit:"a1b2c3d", detail:"Control: schema validation and size limits before any processing." },
+      { id:"phi", label:"Patient records (PHI)", x:650, y:200, w:200, h:60, src:"src/store/patients.py:17", repo:"backend-api", ledger:"F-0405", confidence:"verified", commit:"a1b2c3d", detail:"Encrypted at rest with field-level encryption. Access limited to the data layer.", sensitive:true },
+      { id:"keys", label:"Key management", x:650, y:320, w:200, h:50, src:"src/config/secrets.py:6", repo:"backend-api", ledger:"F-0406", confidence:"verified", commit:"a1b2c3d", detail:"Holds encryption keys. Keys are not stored alongside data.", sensitive:true }
+    ],
+    edges: [
+      { from:"browser", to:"edge", label:"TLS", ledger:"F-0411", confidence:"verified" },
+      { from:"edge", to:"api", label:"Auth check", ledger:"F-0412", confidence:"verified" },
+      { from:"api", to:"ctrl", label:"Validate", ledger:"F-0413", confidence:"verified" },
+      { from:"ctrl", to:"phi", label:"Encrypted write", ledger:"F-0414", confidence:"verified" },
+      { from:"keys", to:"phi", label:"Key use", ledger:"F-0415", confidence:"verified" }
+    ]
+  },
+  "layering": {
+    title: "Module layering",
+    desc: "Allowed dependency direction between layers. Arrows point from the caller to the layer it may depend on.",
+    zones: [],
+    nodes: [
+      { id:"clients", label:"Clients", x:40, y:30, w:180, h:44, src:"src/clients/", repo:"backend-api", ledger:"F-0501", confidence:"verified", commit:"a1b2c3d", detail:"Entry-facing code. May call the broker only." },
+      { id:"broker", label:"Broker", x:40, y:110, w:180, h:44, src:"src/broker/", repo:"backend-api", ledger:"F-0502", confidence:"verified", commit:"a1b2c3d", detail:"Routes requests to managers." },
+      { id:"managers", label:"Managers", x:40, y:190, w:180, h:44, src:"src/managers/", repo:"backend-api", ledger:"F-0503", confidence:"verified", commit:"a1b2c3d", detail:"Coordinates engines and resource access." },
+      { id:"engines", label:"Engines", x:40, y:270, w:180, h:44, src:"src/engines/", repo:"backend-api", ledger:"F-0504", confidence:"verified", commit:"a1b2c3d", detail:"Domain computation. Should have no direct I/O." },
+      { id:"resource", label:"Resource access", x:40, y:350, w:180, h:44, src:"src/resources/", repo:"backend-api", ledger:"F-0505", confidence:"verified", commit:"a1b2c3d", detail:"Only layer that should touch storage and external I/O.", sensitive:true },
+      { id:"utils", label:"Utilities", x:400, y:350, w:180, h:44, src:"src/utils/", repo:"backend-api", ledger:"F-0506", confidence:"verified", commit:"a1b2c3d", detail:"Shared helpers. Depends on nothing above it." }
+    ],
+    edges: [
+      { from:"clients", to:"broker", label:"calls", ledger:"F-0511", confidence:"verified" },
+      { from:"broker", to:"managers", label:"dispatch", ledger:"F-0512", confidence:"verified" },
+      { from:"managers", to:"engines", label:"invokes", ledger:"F-0513", confidence:"verified" },
+      { from:"engines", to:"resource", label:"reads/writes (violates layering)", ledger:"F-0514", confidence:"conflict" },
+      { from:"managers", to:"utils", label:"uses", ledger:"F-0515", confidence:"verified" }
+    ]
+  },
+  "deployment": {
+    title: "Deployment",
+    desc: "Runtime topology, environments, and what is exposed publicly.",
+    zones: [
+      { id:"pub", label:"Public network", x:20, y:50, w:260, h:380 },
+      { id:"priv", label:"Private network", x:320, y:50, w:560, h:380 }
+    ],
+    nodes: [
+      { id:"lb", label:"Load balancer", x:50, y:200, w:180, h:50, src:"deploy/lb.tf:4", repo:"infra", ledger:"F-0601", confidence:"verified", commit:"c7d8e9f", detail:"Only publicly reachable entry. Terminates TLS." },
+      { id:"app1", label:"App replicas (x3)", x:360, y:130, w:180, h:50, src:"deploy/app.yaml:8", repo:"infra", ledger:"F-0602", confidence:"verified", commit:"c7d8e9f", detail:"Stateless. Scales horizontally." },
+      { id:"worker", label:"Workers", x:360, y:280, w:180, h:50, src:"deploy/worker.yaml:5", repo:"infra", ledger:"F-0603", confidence:"inferred", commit:"c7d8e9f", detail:"Process background jobs. Replica count inferred from config defaults." },
+      { id:"db", label:"Database", x:620, y:200, w:180, h:50, src:"deploy/db.tf:12", repo:"infra", ledger:"F-0604", confidence:"verified", commit:"c7d8e9f", detail:"Not publicly reachable. Encrypted volumes.", sensitive:true },
+      { id:"queue", label:"Message queue", x:620, y:300, w:180, h:50, src:"deploy/queue.tf:3", repo:"infra", ledger:"F-0605", confidence:"verified", commit:"c7d8e9f", detail:"Decouples API from workers." }
+    ],
+    edges: [
+      { from:"lb", to:"app1", label:"HTTP", ledger:"F-0611", confidence:"verified" },
+      { from:"app1", to:"db", label:"SQL, TLS", ledger:"F-0612", confidence:"verified" },
+      { from:"app1", to:"queue", label:"Publish", ledger:"F-0613", confidence:"verified" },
+      { from:"queue", to:"worker", label:"Consume", ledger:"F-0614", confidence:"verified" },
+      { from:"worker", to:"db", label:"SQL, TLS", ledger:"F-0615", confidence:"static-only" }
+    ]
+  },
+  "cross-repo": {
+    title: "Cross-repo map",
+    desc: "Repositories as groups. Edges are backed by contracts (API spec, shared schema, topic). Items marked ⚠ need checking.",
+    zones: [
+      { id:"backend-api", label:"backend-api", x:20, y:40, w:300, h:400 },
+      { id:"ml-service", label:"ml-service", x:340, y:40, w:260, h:400 },
+      { id:"shared-schemas", label:"shared-schemas", x:620, y:40, w:260, h:400 }
+    ],
+    nodes: [
+      { id:"api", label:"API service", x:50, y:110, w:200, h:50, src:"src/api/routes.py:42", repo:"backend-api", ledger:"F-0701", confidence:"verified", commit:"a1b2c3d", detail:"Calls the ML scoring API and reads patient-visit data." },
+      { id:"worker", label:"Background worker", x:50, y:300, w:200, h:50, src:"src/jobs/worker.py:9", repo:"backend-api", ledger:"F-0702", confidence:"inferred", commit:"a1b2c3d", detail:"Writes patient records to the shared schema. Retry behaviour not confirmed." },
+      { id:"mlapi", label:"ML scoring API", x:370, y:110, w:200, h:50, src:"openapi/scoring.yaml:14", repo:"ml-service", ledger:"F-0703", confidence:"verified", commit:"b4c5d6e", detail:"Published OpenAPI contract. Consumers: backend-api." },
+      { id:"etl", label:"Nightly ETL", x:370, y:300, w:200, h:50, src:"ml/etl/nightly.sh:1", repo:"ml-service", ledger:"F-0704", confidence:"doc-only", commit:"b4c5d6e", detail:"Described in the old runbook. No matching schedule found in code." },
+      { id:"patients", label:"patients (table)", x:650, y:110, w:200, h:50, src:"schema/patients.sql:1", repo:"shared-schemas", ledger:"F-0705", confidence:"verified", commit:"d0e1f2a", detail:"Shared table. Contains sensitive fields.", sensitive:true },
+      { id:"visits", label:"legacy_visits (table)", x:650, y:300, w:200, h:50, src:"schema/legacy_visits.sql:1", repo:"shared-schemas", ledger:"F-0706", confidence:"dead-candidate", commit:"d0e1f2a", detail:"No reads or writes found in any repo. Confirm before removal." }
+    ],
+    edges: [
+      { from:"api", to:"mlapi", label:"HTTP, OpenAPI v2", ledger:"F-0711", confidence:"verified" },
+      { from:"worker", to:"patients", label:"Shared DB, read/write", ledger:"F-0712", confidence:"verified" },
+      { from:"etl", to:"patients", label:"Nightly batch write", ledger:"F-0713", confidence:"static-only" },
+      { from:"api", to:"visits", label:"Reads (docs say removed)", ledger:"F-0714", confidence:"conflict" }
+    ]
+  }
+};
+
+const NS = "http://www.w3.org/2000/svg";
+const SEQ_MS = { slow: 2200, normal: 1300, fast: 700 };   // time per highlighted step
+const DUR    = { slow: 3, normal: 1.8, fast: 0.9 };       // seconds per packet trip
+const WARN   = ["doc-only", "conflict", "static-only"];   // confidence levels shown with ⚠
+
+const svg = document.getElementById("diagram");
+const tabsEl = document.querySelector("nav.tabs");
+const descEl = document.getElementById("desc");
+const stepEl = document.getElementById("stepText");
+const info = document.getElementById("info");
+const zonesG = document.getElementById("zones");
+const edgesG = document.getElementById("edges");
+const nodesG = document.getElementById("nodes");
+const titleEl = document.getElementById("diagTitle");
+const toggleBtn = document.getElementById("toggle");
+const stepBtn = document.getElementById("step");
+const speedSel = document.getElementById("speed");
+const repoSel = document.getElementById("repoFilter");
+const verifiedOnly = document.getElementById("verifiedOnly");
+const searchBox = document.getElementById("search");
+const ledgerStatus = document.getElementById("ledgerStatus");
+
+// Respect the reader's motion setting: start paused if reduced motion is requested.
+let playing = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let speed = "normal";
+let currentKey = null;
+let currentEdges = [];
+let currentById = {};
+let seqIndex = 0;
+let seqTimer = null;
+
+const isVerified = x => x.confidence === "verified";
+
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+
+function center(n) { return { x: n.x + n.w / 2, y: n.y + n.h / 2 }; }
+
+function edgePoint(a, b) {
+  const c = center(a), d = center(b);
+  const dx = d.x - c.x, dy = d.y - c.y;
+  const sx = dx !== 0 ? (a.w / 2) / Math.abs(dx) : Infinity;
+  const sy = dy !== 0 ? (a.h / 2) / Math.abs(dy) : Infinity;
+  const s = Math.min(sx, sy);
+  return { x: c.x + dx * s, y: c.y + dy * s };
+}
+
+/* ---------- side panel ---------- */
+
+function note(text) {
+  const p = document.createElement("p");
+  p.textContent = text;
+  info.appendChild(p);
+}
+
+function addRow(dl, term, value, asCode) {
+  const dt = document.createElement("dt");
+  dt.textContent = term;
+  const dd = document.createElement("dd");
+  if (asCode) {
+    const c = document.createElement("code");
+    c.textContent = value;
+    dd.appendChild(c);
+  } else {
+    dd.textContent = value;
+  }
+  dl.append(dt, dd);
+}
+
+function showInfo(n) {
+  info.innerHTML = "";
+  const h = document.createElement("h2");
+  h.textContent = n.label;
+  info.appendChild(h);
+  if (n.summary) note(n.summary);
+  note(n.detail);
+  const dl = document.createElement("dl");
+  addRow(dl, "Source", n.src, true);
+  addRow(dl, "Ledger", n.ledger || "MISSING", false);
+  addRow(dl, "Confidence", n.confidence || "unset", false);
+  if (n.repo) addRow(dl, "Repo", n.repo, false);
+  if (n.commit) addRow(dl, "Commit", n.commit, true);
+  info.appendChild(dl);
+  if (n.sensitive) note("Contains sensitive data.");
+  if (!isVerified(n)) note("Not verified in code. Check before relying on this item.");
+}
+
+function showEdgeInfo(e, a, b) {
+  info.innerHTML = "";
+  const h = document.createElement("h2");
+  h.textContent = `${a.label} → ${b.label}`;
+  info.appendChild(h);
+  note(e.label);
+  const dl = document.createElement("dl");
+  addRow(dl, "Ledger", e.ledger || "MISSING", false);
+  addRow(dl, "Confidence", e.confidence || "unset", false);
+  if (e.commit) addRow(dl, "Commit", e.commit, true);
+  info.appendChild(dl);
+  if (!isVerified(e)) note("Not verified in code. Check before relying on this link.");
+}
+
+function resetInfo() {
+  info.innerHTML = "<h2>Select a component</h2><p>Click any node or edge to see its source, ledger ID, and confidence.</p>";
+}
+
+/* ---------- animation control ---------- */
+
+function applySpeed() {
+  svg.style.setProperty("--speed", DUR[speed] + "s");
+  svg.querySelectorAll("animateMotion").forEach(a => a.setAttribute("dur", DUR[speed] + "s"));
+}
+
+function setPlayingUI() {
+  toggleBtn.textContent = playing ? "Pause" : "Play";
+  svg.classList.toggle("paused", !playing);
+}
+
+function startSeq() {
+  clearInterval(seqTimer);
+  seqTimer = null;
+  if (playing) seqTimer = setInterval(stepSeq, SEQ_MS[speed]);
+}
+
+function stepSeq() {
+  if (!currentEdges.length) return;
+  highlight(seqIndex % currentEdges.length);
+  seqIndex++;
+}
+
+function highlight(idx) {
+  const e = currentEdges[idx];
+  if (!e) return;
+  nodesG.querySelectorAll(".node.active").forEach(n => n.classList.remove("active"));
+  const lines = edgesG.querySelectorAll("line.edge");
+  lines.forEach(l => l.classList.remove("current"));
+  if (lines[idx]) lines[idx].classList.add("current");
+  [e.from, e.to].forEach(id => {
+    const n = nodesG.querySelector(`[data-id="${id}"]`);
+    if (n) n.classList.add("active");
+  });
+  const from = currentById[e.from].label, to = currentById[e.to].label;
+  stepEl.textContent = `Step ${idx + 1} of ${currentEdges.length}: ${from} → ${to}${e.label ? " (" + e.label + ")" : ""}`;
+}
+
+toggleBtn.addEventListener("click", () => {
+  playing = !playing;
+  if (playing) { svg.unpauseAnimations(); startSeq(); }
+  else { svg.pauseAnimations(); clearInterval(seqTimer); seqTimer = null; }
+  setPlayingUI();
+});
+
+stepBtn.addEventListener("click", () => {
+  if (playing) {
+    playing = false;
+    svg.pauseAnimations();
+    clearInterval(seqTimer);
+    seqTimer = null;
+    setPlayingUI();
+  }
+  stepSeq();
+});
+
+speedSel.addEventListener("change", () => {
+  speed = speedSel.value;
+  applySpeed();
+  startSeq();
+});
+
+repoSel.addEventListener("change", () => render(currentKey));
+verifiedOnly.addEventListener("change", () => render(currentKey));
+searchBox.addEventListener("input", applySearch);
+
+/* ---------- ledger check ---------- */
+
+function updateLedgerStatus(d) {
+  const items = [...d.nodes, ...d.edges];
+  const missing = items.filter(x => !x.ledger).length;
+  const unverified = items.filter(x => !isVerified(x)).length;
+  const ids = new Set(d.nodes.map(n => n.id));
+  const dangling = d.edges.filter(e => !ids.has(e.from) || !ids.has(e.to)).length;
+  if (missing || unverified || dangling) {
+    ledgerStatus.className = "bad";
+    ledgerStatus.textContent = `Ledger check: ${missing} item(s) missing ledger IDs, ${unverified} not verified, ${dangling} edge(s) with undefined endpoints.`;
+  } else {
+    ledgerStatus.className = "ok";
+    ledgerStatus.textContent = "Ledger check passed: every item has a ledger ID and is verified.";
+  }
+}
+
+/* ---------- search ---------- */
+
+function applySearch() {
+  const q = searchBox.value.trim().toLowerCase();
+  nodesG.querySelectorAll(".node").forEach(g => {
+    const n = currentById[g.dataset.id];
+    const hit = !!q && !!n && (n.label.toLowerCase().includes(q) ||
+      (n.summary || "").toLowerCase().includes(q) || (n.ledger || "").toLowerCase() === q);
+    g.classList.toggle("match", hit);
+  });
+}
+
+/* ---------- rendering ---------- */
+
+function render(key) {
+  currentKey = key;
+  const d = DIAGRAMS[key];
+  titleEl.textContent = d.title;
+  descEl.textContent = d.desc;
+  zonesG.innerHTML = ""; edgesG.innerHTML = ""; nodesG.innerHTML = "";
+  seqIndex = 0;
+  resetInfo();
+  updateLedgerStatus(d);
+
+  // Repo filter: rebuild options for this diagram, keeping the choice if it still applies.
+  const repos = [...new Set(d.nodes.map(n => n.repo).filter(Boolean))].sort();
+  const prevRepo = repoSel.value;
+  repoSel.innerHTML = "";
+  repoSel.appendChild(new Option("All repos", ""));
+  repos.forEach(r => repoSel.appendChild(new Option(r, r)));
+  repoSel.value = repos.includes(prevRepo) ? prevRepo : "";
+  const repo = repoSel.value;
+
+  // Verified-only view removes unverified items entirely.
+  const onlyV = verifiedOnly.checked;
+  const allById = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+  const shownNodes = d.nodes.filter(n => !onlyV || isVerified(n));
+  const shown = new Set(shownNodes.map(n => n.id));
+  currentById = allById;
+  currentEdges = d.edges.filter(e => shown.has(e.from) && shown.has(e.to) && (!onlyV || isVerified(e)));
+
+  d.zones.forEach(z => {
+    const g = el("g", { class: "zone" + (repo && z.id !== repo ? " dim" : "") }, zonesG);
+    el("rect", { x: z.x, y: z.y, width: z.w, height: z.h, rx: 8 }, g);
+    el("text", { x: z.x + 10, y: z.y + 18 }, g).textContent = z.label;
+  });
+
+  currentEdges.forEach((e, i) => {
+    const a = allById[e.from], b = allById[e.to];
+    const p = edgePoint(a, b), q = edgePoint(b, a);
+    const conf = e.confidence && !isVerified(e) ? " conf-" + e.confidence : "";
+    const line = el("line", { class: "edge flow" + conf, x1: p.x, y1: p.y, x2: q.x, y2: q.y }, edgesG);
+    const tip = el("title", {}, line);
+    tip.textContent = `${e.label} | ${e.ledger || "NO LEDGER ID"} | ${e.confidence || "unset"}`;
+    line.addEventListener("click", () => showEdgeInfo(e, a, b));
+
+    const labelText = (WARN.includes(e.confidence) ? "⚠ " : "") + e.label;
+    el("text", { class: "edge-label", x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 - 6 }, edgesG).textContent = labelText;
+
+    // A packet travels source to target, staggered so the flow reads in order.
+    const packet = el("circle", { class: "packet", r: 4 }, edgesG);
+    el("animateMotion", {
+      path: `M${p.x},${p.y} L${q.x},${q.y}`,
+      dur: DUR[speed] + "s",
+      repeatCount: "indefinite",
+      begin: (i * 0.4) + "s"
+    }, packet);
+  });
+
+  shownNodes.forEach(n => {
+    const cls = ["node"];
+    if (n.sensitive) cls.push("sensitive");
+    if (n.confidence && !isVerified(n)) cls.push("conf-" + n.confidence);
+    if (!n.ledger) cls.push("no-ledger");
+    if (repo && n.repo !== repo) cls.push("dim");
+    const g = el("g", {
+      class: cls.join(" "),
+      tabindex: 0, role: "button", "aria-label": n.label, "data-id": n.id
+    }, nodesG);
+    const tip = el("title", {}, g);
+    tip.textContent = `${n.src} | ${n.ledger || "NO LEDGER ID"} | ${n.confidence || "unset"}`;
+    el("rect", { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6 }, g);
+    const label = n.confidence === "dead-candidate" ? n.label + " (dead?)" : n.label;
+    el("text", { x: n.x + n.w / 2, y: n.y + n.h / 2 + 4, "text-anchor": "middle" }, g).textContent = label;
+    if (WARN.includes(n.confidence)) {
+      const badge = el("text", { class: "badge", x: n.x + n.w - 8, y: n.y + 14, "text-anchor": "end" }, g);
+      badge.textContent = "⚠";
+      el("title", {}, badge).textContent = "Not verified: " + n.confidence;
+    }
+    const select = () => {
+      document.querySelectorAll(".node.selected").forEach(x => x.classList.remove("selected"));
+      g.classList.add("selected");
+      showInfo(n);
+    };
+    g.addEventListener("click", select);
+    g.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(); } });
+  });
+
+  applySpeed();
+  if (playing) svg.unpauseAnimations(); else svg.pauseAnimations();
+  setPlayingUI();
+  if (currentEdges.length) stepSeq(); else stepEl.textContent = "";
+  applySearch();
+  startSeq();
+}
+
+function activate(key) {
+  if (!DIAGRAMS[key]) key = Object.keys(DIAGRAMS)[0];
+  tabsEl.querySelectorAll("button").forEach(b => {
+    const on = b.dataset.key === key;
+    b.setAttribute("aria-selected", on);
+    b.setAttribute("tabindex", on ? 0 : -1);
+  });
+  render(key);
+  if (location.hash.slice(1) !== key) history.replaceState(null, "", "#" + key);
+}
+
+Object.keys(DIAGRAMS).forEach(key => {
+  const b = document.createElement("button");
+  b.setAttribute("role", "tab");
+  b.dataset.key = key;
+  b.textContent = DIAGRAMS[key].title;
+  b.addEventListener("click", () => activate(key));
+  tabsEl.appendChild(b);
+});
+
+tabsEl.addEventListener("keydown", ev => {
+  const keys = Object.keys(DIAGRAMS);
+  const cur = keys.indexOf(document.querySelector('[aria-selected="true"]').dataset.key);
+  if (ev.key === "ArrowRight") activate(keys[(cur + 1) % keys.length]);
+  if (ev.key === "ArrowLeft") activate(keys[(cur - 1 + keys.length) % keys.length]);
+});
+
+window.addEventListener("hashchange", () => activate(location.hash.slice(1)));
+activate(location.hash.slice(1));
+</script>
+</body>
+</html>
