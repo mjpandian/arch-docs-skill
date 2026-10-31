@@ -71,7 +71,7 @@ NOT_TICKETS = {"UTF", "SHA", "ISO", "MD", "CVE", "RFC", "TLS", "SSL", "HTTP", "A
 STACK_MARKERS = {
     "python": ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "poetry.lock"],
     "typescript": ["package.json", "tsconfig.json", "jsconfig.json"],
-    "csharp": ["*.sln", "*.csproj", "*.fsproj", "Directory.Build.props"],
+    "csharp": ["*.sln", "*.csproj", "*.fsproj", "*.vbproj", "Directory.Build.props", "web.config", "packages.config", "App.config", "host.json", "local.settings.json"],
     "java": ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"],
     "go": ["go.mod", "go.sum"],
     "ruby": ["Gemfile", "*.gemspec"],
@@ -84,7 +84,7 @@ STACK_MARKERS = {
 STACK_EXCLUDES = {
     "python": ["*.pyc", "__pycache__/*", "*/__pycache__/*", ".pytest_cache/*", "*/.pytest_cache/*", ".venv/*", "*/.venv/*", ".mypy_cache/*", "*/.mypy_cache/*", ".tox/*", "*/.tox/*"],
     "typescript": ["node_modules/*", "*/node_modules/*", "dist/*", "*/dist/*", ".next/*", "*/.next/*", ".nuxt/*", "*/.nuxt/*", "*.tsbuildinfo", ".yarn/*", "*/.yarn/*"],
-    "csharp": ["bin/*", "*/bin/*", "obj/*", "*/obj/*", "*.Designer.cs", "*.g.cs", "*.g.i.cs", "*.AssemblyInfo.cs", "*.generated.cs", "packages/*", "*/packages/*", "*.csproj.user"],
+    "csharp": ["bin/*", "*/bin/*", "obj/*", "*/obj/*", "*.Designer.cs", "*.g.cs", "*.g.i.cs", "*.AssemblyInfo.cs", "*.generated.cs", "packages/*", "*/packages/*", "*.csproj.user", "App_Data/*", "*/App_Data/*", ".vs/*", "*/.vs/*"],
     "java": ["target/*", "*/target/*", "build/*", "*/build/*", ".gradle/*", "*/.gradle/*", "*.class", "*.jar", "*.war", "gradle/wrapper/*", "*/generated-sources/*"],
     "go": ["vendor/*", "*/vendor/*", "*.pb.go"],
     "ruby": [".bundle/*", "*/.bundle/*", "vendor/bundle/*"],
@@ -96,7 +96,7 @@ STACK_EXCLUDES = {
 STACK_TEST_EXCLUDES = {
     "python": ["tests/*", "*/tests/*", "test/*", "*/test/*", "test_*.py", "*/test_*.py", "*_test.py", "*/conftest.py", "conftest.py"],
     "typescript": ["__tests__/*", "*/__tests__/*", "*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx", "*.test.js", "*.spec.js", "tests/*", "*/tests/*"],
-    "csharp": ["*Test.cs", "*Tests.cs", "*UnitTest.cs", "tests/*", "*/tests/*", "test/*", "*/test/*"],
+    "csharp": ["*Test.cs", "*Tests.cs", "*UnitTest.cs", "tests/*", "*/tests/*", "test/*", "*/test/*", "*.Tests/*", "*/[Tt]ests/*"],
     "java": ["*Test.java", "*Tests.java", "*TestCase.java", "*Test.kt", "*Tests.kt", "src/test/*", "*/src/test/*"],
     "go": ["*_test.go", "*/*_test.go"],
     "ruby": ["spec/*", "*/spec/*", "*_spec.rb", "test/*", "*/test/*"],

@@ -94,6 +94,13 @@ class TestHotspotsCore(unittest.TestCase):
         cs_stacks = hotspots.detect_stacks(".", csharp_files)
         self.assertIn("csharp", cs_stacks)
 
+        # Legacy and Azure Functions detection
+        legacy_cs_files = ["src/LegacyWeb/web.config", "src/LegacyWeb/packages.config", "src/LegacyWeb/Global.asax.cs"]
+        self.assertIn("csharp", hotspots.detect_stacks(".", legacy_cs_files))
+
+        func_files = ["src/Functions/host.json", "src/Functions/local.settings.json", "src/Functions/ProcessOrder.cs"]
+        self.assertIn("csharp", hotspots.detect_stacks(".", func_files))
+
     def test_module_for_build_markers(self):
         all_files = [
             "services/order/Order.csproj",
@@ -275,6 +282,11 @@ class TestReferencesAndStacks(unittest.TestCase):
         # C#
         cs_doc = (WORKSPACE_DIR / "references" / "stacks" / "csharp.md").read_text(encoding="utf-8")
         self.assertIn("/p:ErrorLog=artifacts/build.sarif,version=2.1", cs_doc)
+        self.assertIn("Function", cs_doc)
+        self.assertIn("web.config", cs_doc)
+        self.assertIn("Global.asax", cs_doc)
+        self.assertIn("semgrep", cs_doc.lower())
+        self.assertIn("compilation", cs_doc.lower())
 
         # Java
         java_doc = (WORKSPACE_DIR / "references" / "stacks" / "java.md").read_text(encoding="utf-8")
