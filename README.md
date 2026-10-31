@@ -1,37 +1,65 @@
 # Architecture Docs Skill
 
-An AI-agent skill for creating evidence-based architecture documentation from existing codebases. It supports single repositories, legacy systems, and multi-repository estates, and includes a self-contained HTML diagram template.
+An AI-agent skill for creating evidence-based architecture documentation from existing codebases. It supports single repositories, legacy systems, and multi-repository estates, and includes a self-contained offline HTML diagram template, git hotspot ranking, static analyzer issue integration, and formal TLA+ validation.
 
 ## What It Produces
 
 For a small, single-repository system, the default outputs are:
 
-- `docs/TECHNICAL_MANUAL.md`: architecture overview, key components, data and integration flows, deployment, security boundaries, and other topics supported by evidence.
+- `docs/TECHNICAL_MANUAL.md`: architecture overview, technology stack matrix, key use cases, core components, data and integration flows, deployment, security boundaries, and other topics supported by evidence.
 - `docs/diagrams/index.html`: an offline, interactive architecture diagram generated from `assets/diagrams.html`.
 
-For larger or multi-repository scopes, the skill can create layered documentation for different audiences, plus an evidence ledger (`docs/ledger.json`) and a drift register (`docs/drift.md`). It records the repository commit SHAs used so readers can trace claims to a specific code state. Output paths can be set by the user. Existing files are not to be overwritten.
+For larger or multi-repository scopes, the skill creates layered documentation for different audiences (`00-executive-summary.md`, `01-context.md`, `02-containers.md`, `03-use-cases.md`, etc.), plus an evidence ledger (`docs/ledger.json`), drift register (`docs/drift.md`), and ranked hotspot analysis (`docs/hotspots.json`, `docs/hotspots.md`, `docs/hotspots.embed.js`). It records repository commit SHAs used so readers can trace claims to a specific code state.
 
 ## Contents
 
 ```text
 arch-docs-skill/
-├── SKILL.md
-├── README.md
-└── assets/
-    └── diagrams.html
+├── SKILL.md                 # Lean entry workflow, core principles, and completion criteria
+├── README.md                # Skill overview and usage guide
+├── assets/
+│   ├── diagrams.html        # Interactive offline HTML diagram template (8 views)
+│   └── tla/                 # Reference TLA+ specs and configurations for concurrency
+│       ├── QueueConsumer.tla
+│       ├── QueueConsumer_safe.cfg
+│       └── QueueConsumer_unsafe.cfg
+├── references/              # On-demand reference documentation
+│   ├── ledger.md            # Evidence ledger schema and drift register
+│   ├── legacy-and-multi-repo.md # Dynamic wiring, non-HTTP entry points, database coupling
+│   ├── documentation-layout.md  # Single and layered technical manual chapter outlines
+│   ├── diagram-page.md      # Template specifications and interactive features
+│   ├── hotspots.md          # Multi-signal triangulation and config file ranking
+│   ├── formal-validation.md # TLA+ formal validation with TLC
+│   └── stacks/              # Stack-specific detection, wiring, exclusions, and SARIF tools
+│       ├── python.md
+│       ├── typescript.md
+│       ├── csharp.md
+│       ├── java.md
+│       ├── yaml-and-iac.md
+│       └── go.md
+├── scripts/
+│   ├── hotspots.py          # Stack-aware git churn, complexity, coupling & config ranking
+│   ├── sarif_to_signals.py  # Converts SARIF scanner outputs into hotspot signals
+│   └── run_tlc.py           # Runs TLC model checker and outputs JSON execution records
+└── tests/
+    └── test_skill_tools.py  # Automated test suite for scripts, contracts, and HTML
 ```
 
-- `SKILL.md` contains the workflow, evidence standards, output conventions, and completion checks.
+- `SKILL.md` contains the lean entry workflow, evidence standards, and completion criteria.
+- `references/` contains in-depth documentation templates, schemas, and stack-specific references.
 - `assets/diagrams.html` is the interactive diagram template. Its `DIAGRAMS` object contains illustrative sample data that must be fully replaced with project-specific findings before delivery.
+- `scripts/hotspots.py` ranks files by independent signals from git history and external analyzers, automatically detecting stacks and ranking configuration files in their own group.
+- `scripts/sarif_to_signals.py` normalizes SARIF outputs from Semgrep, CodeQL, Trivy, ESLint, Bandit, PMD, Roslyn, and Kube-Linter into file-level signals without leaking code or secret snippets.
+- `scripts/run_tlc.py` executes TLC against TLA+ models to check safety invariants.
 
 ## Use
 
-Install or reference this directory in an AI coding-agent environment that supports `SKILL.md` skills. Keep `SKILL.md` and `assets/diagrams.html` together so the skill can find its template. Invoke it with a request to document an existing system, for example:
+Install or reference this directory in an AI coding-agent environment that supports `SKILL.md` skills. Keep `SKILL.md`, `assets/`, and `scripts/` together so the skill can access its tools and templates. Invoke it with a request to document an existing system, for example:
 
-- “Create an architecture manual for this repository for new engineers.”
-- “Map the data flow and security boundaries across these repositories.”
-- “Assess this legacy system for modernization and document its runtime entry points.”
-- “Generate a layered technical guide and an offline diagram page.”
+- “Scan this codebase and create an architecture manual with tech stack and key use cases.”
+- “Map the data flow, security boundaries, and deployment topology across these repositories.”
+- “Assess this legacy system for modernization, rank hotspots, and document its runtime entry points.”
+- “Generate layered technical documentation and an interactive offline HTML diagram.”
 
 Specify the audience, repositories, desired depth, and output paths when they matter. For large or multi-repository work, the skill estimates scope before analysis so the user can narrow it.
 
@@ -54,15 +82,23 @@ For legacy or multi-repository work, claims are recorded in `docs/ledger.json`, 
 
 ## Diagram Features
 
-The template provides tabs for app flow, data flow, integration flow, security boundaries, module layering, and deployment. The skill adds a cross-repository view when relevant. The page supports:
+The template provides 8 interactive views:
+1. **App flow**: Request lifecycle from entry point to response.
+2. **Data flow**: Ingestion, validation, persistence, caching, and export.
+3. **Integration flow**: Internal and external system communication protocols and credentials.
+4. **Security boundaries**: Trust zones, controls, and sensitive data (PHI/PII/secrets).
+5. **Module layering**: Permitted architectural layer dependencies.
+6. **Deployment**: Runtime topology, environments, and network boundaries.
+7. **Cross-repo map**: Contract-based inter-repository relationships.
+8. **Key use cases**: Animated, step-by-step transaction walk-throughs for primary user journeys.
 
-- Source, ledger ID, confidence, repository, and commit details for diagram items
-- Confidence styling for inferred, unverified, and dead-candidate items
-- A repository filter, verified-only checkbox, and search field
-- Clickable nodes and edges, keyboard-accessible node selection, and animated flow controls
-- A footer check for missing ledger IDs, unverified items, and undefined edge endpoints
-
-The generated page must remain self-contained and offline. Sensitive values must never be included. Only label data as sensitive when the code or configuration supports that classification.
+The page supports:
+- **Tech stack annotations**: Displays component technologies directly on SVG nodes (e.g. `[PostgreSQL 16]`, `[FastAPI]`) and in the side panel.
+- **Confidence styling**: Verified (solid), inferred (dashed), warnings for unverified (`⚠`), and dead candidates.
+- **Interactive controls**: Play / Pause / Step sequential flow animation, animation speed control, repository filter, verified-only toggle, and search.
+- **Hotspot overlay**: Visual heat-strips and ranks from `hotspots.py`.
+- **Model-check indicators**: TLA+ verification badges (`✖` violation / `✓` passed within bounds).
+- **Offline & private**: Zero external dependencies or network calls; sensitive values masked.
 
 ## Verification
 
@@ -73,6 +109,5 @@ Before calling the documentation complete, the skill checks that:
 - Source references and counts match the recorded repository commit and underlying code or data.
 - Every documentation/code conflict is represented in the drift register.
 - Outputs contain no secret-like values, no template sample data, and no overwritten files.
+- Top ranked hotspots have written findings backed by code evidence.
 - A separate validation pass reviews the evidence ledger for legacy or multi-repository work.
-
-Static inspection cannot establish runtime behavior by itself. The final summary identifies the discovery method, repository SHAs, ledger totals, drift count, top risks, limitations, and findings that still need verification.
